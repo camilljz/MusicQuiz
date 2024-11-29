@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            .grid-container {
+                display: inline-grid;
+                grid-template-columns: auto auto auto auto auto;
+                grid-gap: 20px;
+                background-color: #054171;
+                padding: 20px;
+            }
+
+            .grid-container > .title {
+                background-color: rgba(132, 255, 234, 0.8);
+                text-align: center;
+                font-size: 30px;
+                font-weight: bold;
+                position: relative;
+            }
+
+            .grid-container > .number {
+                background-color: #dbf5fccc;
+                text-align: center;
+                font-size: 25px;
+                transition: background-color 0.2s ease, transform 0.6s ease;
+                transform-style: preserve-3d;
+                position: relative;
+                cursor: pointer;
+                perspective: 1500px;
+                width: 80px;
+                height: 80px;
+            }
+
+            .grid-container > .number:hover:not(.flip) {
+                background-color: rgba(255, 171, 132, 1);
+                font-size: 35px;
+                transition-duration: 1000ms;
+            }
+
+            .number > .inner {
+                position: relative;
+                width: 100%;
+                height: 100%;
+                align-items: center;
+                transition: transform 0.6s ease;
+                transform-style: preserve-3d;
+                transform-origin: center center;
+            }
+
+            .number.flip > .inner {
+                transform: rotateY(180deg);
+            }
+
+            .number.flip {
+                z-index: 10;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            }
+
+            .remove-btn {
+                position: fixed; /* Fixed positioning relative to the viewport */
+                /* Removed 'top' property */
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: #ff4d4d; /* Red color */
+                color: #fff;
+                border: none;
+                padding: 5px 10px;
+                cursor: pointer;
+                font-size: 10px;
+                border-radius: 4px;
+                z-index: 1000; /* Ensure it appears above other elements */
+                display: none; /* Hidden by default */
+            }
+
+            .remove-btn.show {
+                display: block; /* Show when needed */
+            }
+
+            .remove-btn:hover {
+                background-color: #e60000; /* Darker red on hover */
+            }
+
+            .front,
+            .back {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                backface-visibility: hidden; /* Hide the back face when not visible */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 40px;
+                font-weight: bold;
+                box-sizing: border-box;
+            }
+
+            .front {
+                background-color: #dbf5fccc;
+                border: 2px solid #000;
+                background: linear-gradient(to right, #dbf5fc, #a1d1e6);
+            }
+
+            .back {
+                background-color: #000; /* Black background for back */
+                color: #fff; /* White text for back */
+                transform: rotateY(180deg); /* Ensure the back is rotated initially */
+                font-size: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="grid-container">
+            <!-- Titles -->
+            <div class="title">Q1</div>
+            <div class="title">Q2</div>
+            <div class="title">Q3</div>
+            <div class="title">Q4</div>
+            <div class="title">Q5</div>
+
+            <!-- Number Cells -->
+            <div class="number" data-spotify-uri="spotify:track:6sZ7gxjnExFIU0fNA7vCWG?si=1a59712a090049eb">
+                <div class="inner">
+                    <div class="front">1</div>
+                    <div class="back">My Heart Will Go On</div>
+                </div>
+            </div>
+
+            <div class="number">
+                <div class="inner">
+                    <div class="front">2</div>
+                    <div class="back">I Will Always Love You</div>
+                </div>
+            </div>
+
+            <div class="number">
+                <div class="inner">
+                    <div class="front">3</div>
+                    <div class="back">Song Title 3</div>
+                </div>
+            </div>
+
+            <!-- Add more number cells as needed -->
+            <div class="number">1</div>
+            <div class="number">1</div>
+
+            <div class="number">2</div>
+            <div class="number">2</div>
+            <div class="number">2</div>
+            <div class="number">2</div>
+            <div class="number">2</div>
+
+            <div class="number">3</div>
+            <div class="number">3</div>
+            <div class="number">3</div>
+            <div class="number">3</div>
+            <div class="number">3</div>
+
+            <div class="number">4</div>
+            <div class="number">4</div>
+            <div class="number">4</div>
+            <div class="number">4</div>
+            <div class="number">4</div>
+        </div>
+
+        <!-- Remove Button -->
+        <button class="remove-btn">Remove</button>
+
+        <script src="https://sdk.scdn.co/spotify-player.js"></script>
+
+        <script>
+            // Authentication parameters
+            const clientId = '050f79143aa14ece8e9107403113ed75';
+            const redirectUri = 'https://camilljz.github.io/MusicQuiz/'; // e.g., 'http://localhost:8000/callback'
+    
+            // Function to get the access token
+            function getAccessToken() {
+                const params = new URLSearchParams(window.location.hash.substring(1));
+                let accessToken = params.get('access_token');
+    
+                if (!accessToken) {
+                    // Redirect user to Spotify authorization
+                    const scopes = 'streaming user-read-email user-read-private';
+                    window.location = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`;
+                }
+    
+                return accessToken;
+            }
+    
+            // Get the access token
+            const accessToken = getAccessToken();
+    
+            let player;
+            let deviceId;
+            let currentItem = null; // Keep track of the currently enlarged item
+            const items = document.querySelectorAll('.number');
+            const removeBtn = document.querySelector('.remove-btn'); // Select the remove button
+    
+            window.onSpotifyWebPlaybackSDKReady = () => {
+                player = new Spotify.Player({
+                    name: 'Music Quiz Player',
+                    getOAuthToken: cb => { cb(accessToken); },
+                    volume: 0.5
+                });
+    
+                // Error handling
+                player.addListener('initialization_error', ({ message }) => { console.error(message); });
+                player.addListener('authentication_error', ({ message }) => { console.error(message); });
+                player.addListener('account_error', ({ message }) => { console.error(message); });
+                player.addListener('playback_error', ({ message }) => { console.error(message); });
+    
+                // Ready
+                player.addListener('ready', ({ device_id }) => {
+                    console.log('Ready with Device ID', device_id);
+                    deviceId = device_id;
+                });
+    
+                // Connect to the player!
+                player.connect();
+            };
+    
+            // Function to play a Spotify track
+            function playSpotifyTrack(deviceId, spotifyUri) {
+                fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ uris: [spotifyUri] }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                }).catch((error) => {
+                    console.error('Error playing track:', error);
+                });
+            }
+    
+            // Function to handle the click event
+            function handleItemClick(event) {
+                const item = event.currentTarget;
+    
+                // Reset flip state and transformations for all other items
+                items.forEach((el) => {
+                    if (el !== item) {
+                        el.classList.remove('flip');
+                        el.style.transform = '';
+                        el.style.zIndex = '';
+                    }
+                });
+    
+                // Toggle flip on the clicked item
+                if (item.classList.contains('flip')) {
+                    // If already flipped, reset
+                    item.classList.remove('flip');
+                    item.style.transform = '';
+                    item.style.zIndex = '';
+    
+                    // Hide the remove button and reset its position
+                    removeBtn.classList.remove('show');
+                    removeBtn.style.top = ''; // Reset the top position
+                    currentItem = null;
+                } else {
+                    // Add flip class
+                    item.classList.add('flip');
+                    item.style.zIndex = '10';
+    
+                    // Calculate the item's position relative to the viewport
+                    const itemRect = item.getBoundingClientRect();
+    
+                    // Calculate the center position of the viewport
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    const viewportCenterX = viewportWidth / 2;
+                    const viewportCenterY = viewportHeight / 2;
+    
+                    // Calculate the item's center position
+                    const itemCenterX = itemRect.left + itemRect.width / 2;
+                    const itemCenterY = itemRect.top + itemRect.height / 2;
+    
+                    // Calculate the translation needed
+                    const translateX = viewportCenterX - itemCenterX;
+                    const translateY = viewportCenterY - itemCenterY;
+    
+                    // Apply transform to move and scale the item
+                    const scale = 3;
+                    item.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    
+                    // Show the remove button
+                    removeBtn.classList.add('show');
+                    currentItem = item;
+    
+                    // Calculate the position of the button based on known values
+                    const itemOriginalHeight = itemRect.height; // Should be 80
+                    const buttonTop = viewportCenterY + (itemOriginalHeight * scale / 2) + 20;
+                    removeBtn.style.top = `${buttonTop}px`;
+    
+                    // Set left to 50% and center horizontally
+                    removeBtn.style.left = '50%';
+                    removeBtn.style.transform = 'translateX(-50%)';
+    
+                    // Get the Spotify URI from the data attribute
+                    const spotifyUri = item.getAttribute('data-spotify-uri');
+    
+                    // Play the Spotify track
+                    if (player && deviceId && spotifyUri) {
+                        playSpotifyTrack(deviceId, spotifyUri);
+                    }
+                }
+    
+                // Prevent click from propagating to document
+                event.stopPropagation();
+            }
+    
+            // Add click event listener to each item
+            items.forEach((item) => {
+                item.addEventListener('click', handleItemClick);
+            });
+    
+            // Add a click event listener to the document to reset the flip state
+            document.addEventListener('click', () => {
+                items.forEach((item) => {
+                    item.classList.remove('flip');
+                    item.style.transform = '';
+                    item.style.zIndex = '';
+                });
+                // Hide the remove button and reset its position
+                removeBtn.classList.remove('show');
+                removeBtn.style.top = ''; // Reset the top position
+                currentItem = null;
+    
+                // Optionally, pause playback when clicking outside
+                // if (player) {
+                //     player.pause().catch(error => {
+                //         console.error('Error pausing playback:', error);
+                //     });
+                // }
+            });
+    
+            // Prevent clicks on the remove button from closing the box
+            removeBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (currentItem) {
+                    // Hide the current item
+                    currentItem.style.visibility = 'hidden';
+    
+                    // Stop playback
+                    if (player) {
+                        player.pause().catch(error => {
+                            console.error('Error pausing playback:', error);
+                        });
+                    }
+    
+                    // Reset flip state and transformations
+                    currentItem.classList.remove('flip');
+                    currentItem.style.transform = '';
+                    currentItem.style.zIndex = '';
+    
+                    // Hide the remove button and reset its position
+                    removeBtn.classList.remove('show');
+                    removeBtn.style.top = ''; // Reset the top position
+    
+                    // Reset currentItem
+                    currentItem = null;
+                }
+            });
+    
+            // Handle window resize to recalculate positions if necessary
+            window.addEventListener('resize', () => {
+                if (currentItem) {
+                    // Recalculate the center position of the viewport
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    const viewportCenterX = viewportWidth / 2;
+                    const viewportCenterY = viewportHeight / 2;
+    
+                    // Recalculate the item's position relative to the viewport
+                    const itemRect = currentItem.getBoundingClientRect();
+                    const itemCenterX = itemRect.left + itemRect.width / 2;
+                    const itemCenterY = itemRect.top + itemRect.height / 2;
+    
+                    // Calculate the translation needed
+                    const translateX = viewportCenterX - itemCenterX;
+                    const translateY = viewportCenterY - itemCenterY;
+    
+                    // Apply transform to move and scale the item
+                    const scale = 3;
+                    currentItem.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    
+                    // Recalculate the position for the remove button
+                    const itemOriginalHeight = itemRect.height; // Should be 80
+                    const buttonTop = viewportCenterY + (itemOriginalHeight * scale / 2) + 20;
+                    removeBtn.style.top = `${buttonTop}px`;
+    
+                    // Ensure the remove button is centered horizontally
+                    removeBtn.style.left = '50%';
+                    removeBtn.style.transform = 'translateX(-50%)';
+                }
+            });
+        </script>
+    </body>
+</html>
