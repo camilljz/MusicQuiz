@@ -80,6 +80,30 @@
                 background-color: #e60000; /* Darker red on hover */
             }
 
+            .answer-btn {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4CAF50; /* Green color */
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 10px;
+            border-radius: 4px;
+            z-index: 1000;
+            display: none;
+            margin-left: 70px; /* Adjust as needed to position next to Remove */
+        }
+
+            .answer-btn.show {
+            display: block;
+        }
+
+            .answer-btn:hover {
+            background-color: #45a049;
+        }
+
             .front,
             .back {
                 position: absolute;
@@ -162,8 +186,10 @@
             <div class="number">4</div>
         </div>
 
-        <!-- Remove Button -->
+        <!-- Remove and answer Button -->
         <button class="remove-btn">Remove</button>
+        <button class="answer-btn">Answer</button>
+
 
         <script src="https://sdk.scdn.co/spotify-player.js"></script>
 
@@ -194,6 +220,8 @@
             let currentItem = null; // Keep track of the currently enlarged item
             const items = document.querySelectorAll('.number');
             const removeBtn = document.querySelector('.remove-btn'); // Select the remove button
+            const answerBtn = document.querySelector('.answer-btn'); // Select the answer button
+
     
             window.onSpotifyWebPlaybackSDKReady = () => {
                 player = new Spotify.Player({
@@ -231,6 +259,25 @@
                     console.error('Error playing track:', error);
                 });
             }
+
+            function fetchTrackInfo(spotifyUri) {
+                const trackId = spotifyUri.split(':')[2]; // Extract the track ID from the URI
+
+                return fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    return data.name; // Return the track name
+                })
+                .catch(error => {
+                    console.error('Error fetching track info:', error);
+                    return 'Unknown Track';
+                });
+            }
+
     
             // Function to handle the click event
             function handleItemClick(event) {
@@ -282,8 +329,10 @@
                     const scale = 3;
                     item.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
     
-                    // Show the remove button
+                    // Show the remove and answer button
                     removeBtn.classList.add('show');
+                    answerBtn.classList.add('show');
+
                     currentItem = item;
     
                     // Calculate the position of the button based on known values
@@ -323,6 +372,8 @@
                 // Hide the remove button and reset its position
                 removeBtn.classList.remove('show');
                 removeBtn.style.top = ''; // Reset the top position
+                answerBtn.classList.remove('show');
+                answerBtn.style.top = ''; // Reset the top position
                 currentItem = null;
     
                 // Optionally, pause playback when clicking outside
@@ -360,6 +411,32 @@
                     currentItem = null;
                 }
             });
+
+            answerBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                if (currentItem) {
+                    // Fetch the Spotify URI from the current item
+                    const spotifyUri = currentItem.getAttribute('data-spotify-uri');
+
+                    // Fetch the track name
+                    const trackName = await fetchTrackInfo(spotifyUri);
+
+                    // Update the back face with the track name
+                    const backFace = currentItem.querySelector('.back');
+                    backFace.textContent = trackName;
+
+                    // Flip the card to show the back face
+                    currentItem.classList.add('flip');
+
+                    // Optionally, stop playback
+                    if (player) {
+                        player.pause().catch(error => {
+                            console.error('Error pausing playback:', error);
+                        });
+                    }
+                }
+            });
+
     
             // Handle window resize to recalculate positions if necessary
             window.addEventListener('resize', () => {
@@ -389,8 +466,14 @@
                     removeBtn.style.top = `${buttonTop}px`;
     
                     // Ensure the remove button is centered horizontally
-                    removeBtn.style.left = '50%';
+                    removeBtn.style.left = '50% - 60px';
                     removeBtn.style.transform = 'translateX(-50%)';
+
+                    answerBtn.style.top = `${buttonTop}px`;
+
+                    // Position the answer button slightly to the right
+                    answerBtn.style.left = 'calc(50% + 60px)'; // Adjust the value as needed
+                    answerBtn.style.transform = 'translateX(-50%)';
                 }
             });
         </script>
